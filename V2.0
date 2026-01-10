@@ -1,0 +1,105 @@
+from machine import Pin, SPI
+import utime
+import random
+from st7789 import ST7789  # senin verdiğin sürücü
+
+# SPI ve ekran tanımlama
+spi = SPI(1, baudrate=40000000, polarity=1, phase=1,
+          sck=Pin(10), mosi=Pin(11))
+lcd = ST7789(spi, cs=9, dc=8, rst=12, bl=13)
+
+# RGB565 renkler
+BLACK = 0x0000
+WHITE = 0xFFFF
+RED   = 0xF800
+BLUE  = 0x001F
+GRAY  = 0x8410
+
+# Ekran yatay mod
+lcd.width, lcd.height = 240, 240  # ST7789 kare ekran, sadece dikey/yatay mantığını biz ayarlayacağız
+
+# Araba boyutu
+car_w = 30
+car_h = 20
+
+# Şerit ayarları
+num_lanes = 6
+lane_w = lcd.width // num_lanes
+car_lane = 2  # ortadaki şerit (0-5)
+car_y = lcd.height - car_h - 10
+
+# Engel listesi
+obstacles = []
+
+# Tuşlar
+btn_left = Pin(16, Pin.IN, Pin.PULL_UP)
+btn_right = Pin(20, Pin.IN, Pin.PULL_UP)
+btn_up = Pin(2, Pin.IN, Pin.PULL_UP)
+btn_down = Pin(18, Pin.IN, Pin.PULL_UP)
+btn_a = Pin(15, Pin.IN, Pin.PULL_UP)  # drift
+btn_b = Pin(17, Pin.IN, Pin.PULL_UP)  # korna
+
+# Çarpışma kontrolü
+def check_collision(car_rect, obs_rect):
+    cx, cy, cw, ch = car_rect
+    ox, oy, ow, oh = obs_rect
+    if (cx < ox + ow and cx + cw > ox and cy < oy + oh and cy + ch > oy):
+        return True
+    return False
+
+# Dikdörtgen çiz
+def draw_rect(x, y, w, h, color):
+    lcd.set_window(x, y, x+w-1, y+h-1)
+    hi = color >> 8
+    lo = color & 0xFF
+    buf = bytearray([hi, lo] * 64)
+    for _ in range((w*h)//64):
+        lcd.write_data(buf)
+
+# Oyun döngüsü
+speed = 3
+score = 0
+lcd.fill(BLACK)
+
+while True:
+    # Şerit değiştirme
+    if not btn_left.value() and car_lane > 0:
+        car_lane -= 1
+    if not btn_right.value() and car_lane < num_lanes-1:
+        car_lane += 1
+
+    # Engel üret
+    if random.randint(0, 15) == 0:
+        lane = random.randint(0, num_lanes-1)
+        obs_x = lane * lane_w + (lane_w - car_w)//2
+        obs_y = -20
+        obstacles.append([obs_x, obs_y, car_w, car_h])
+
+    # Engel hareketi ve çarpışma
+    for obs in obstacles:
+        obs[1] += speed
+        if check_collision([car_lane*lane_w + (lane_w-car_w)//2, car_y, car_w, car_h], obs):
+            lcd.fill(RED)
+            utime.sleep(1)
+            lcd.fill(BLACK)
+            obstacles.clear()
+            car_lane = 2
+            score = 0
+
+    # Ekranı temizle
+    lcd.fill(BLACK)
+
+    # Şeritleri çiz
+    for i in range(1, num_lanes):
+        draw_rect(i*lane_w-1, 0, 2, lcd.height, GRAY)
+
+    # Engelleri çiz
+    for obs in obstacles:
+        draw_rect(obs[0], obs[1], obs[2], obs[3], WHITE)
+
+    # Arabayı çiz
+    car_x = car_lane * lane_w + (lane_w - car_w)//2
+    draw_rect(car_x, car_y, car_w, car_h, BLUE)
+
+    score += 1
+    utime.sleep_ms(50)
