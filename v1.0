@@ -1,0 +1,105 @@
+from machine import Pin, SPI
+import utime
+import random
+from st7789 import ST7789  # senin verdiğin sürücü
+
+# SPI ve ekran tanımlama
+spi = SPI(1, baudrate=40000000, polarity=1, phase=1,
+          sck=Pin(10), mosi=Pin(11))
+lcd = ST7789(spi, cs=9, dc=8, rst=12, bl=13)
+
+# Renkler (RGB565)
+BLACK = 0x0000
+WHITE = 0xFFFF
+RED   = 0xF800
+GREEN = 0x07E0
+BLUE  = 0x001F
+GRAY  = 0x8410
+
+# Ekran boyutu
+WIDTH = lcd.width
+HEIGHT = lcd.height
+
+# Araba konumu
+car_x = WIDTH // 2 - 10
+car_y = HEIGHT - 30
+car_w = 20
+car_h = 20
+
+# Yol ve engeller
+road_w = 80
+obstacles = []
+
+# Tuşlar
+btn_x = Pin(21, Pin.IN, Pin.PULL_UP)
+btn_y = Pin(19, Pin.IN, Pin.PULL_UP)
+btn_a = Pin(15, Pin.IN, Pin.PULL_UP)
+btn_b = Pin(17, Pin.IN, Pin.PULL_UP)
+btn_up = Pin(2, Pin.IN, Pin.PULL_UP)
+btn_down = Pin(18, Pin.IN, Pin.PULL_UP)
+btn_right = Pin(20, Pin.IN, Pin.PULL_UP)
+btn_left = Pin(16, Pin.IN, Pin.PULL_UP)
+
+# Çarpışma kontrolü
+def check_collision(car, obs):
+    cx, cy, cw, ch = car
+    ox, oy, ow, oh = obs
+    if (cx < ox + ow and cx + cw > ox and
+        cy < oy + oh and cy + ch > oy):
+        return True
+    return False
+
+# Ekrana dikdörtgen çiz
+def draw_rect(x, y, w, h, color):
+    lcd.set_window(x, y, x+w-1, y+h-1)
+    hi = color >> 8
+    lo = color & 0xFF
+    buf = bytearray([hi, lo] * 64)
+    for _ in range((w*h)//64):
+        lcd.write_data(buf)
+
+# Oyun döngüsü
+speed = 2
+score = 0
+lcd.fill(BLACK)
+
+while True:
+    # Tuş okuma
+    if not btn_left.value() and car_x > (WIDTH - road_w)//2:
+        car_x -= 4
+    if not btn_right.value() and car_x + car_w < (WIDTH + road_w)//2:
+        car_x += 4
+    if not btn_up.value() and car_y > 0:
+        car_y -= 4
+    if not btn_down.value() and car_y + car_h < HEIGHT:
+        car_y += 4
+
+    # Engel üret
+    if random.randint(0, 20) == 0:
+        obs_x = random.randint((WIDTH-road_w)//2, (WIDTH+road_w)//2 - 10)
+        obs_y = -10
+        obstacles.append([obs_x, obs_y, 10, 10])
+
+    # Engel hareketi ve çarpma kontrolü
+    for obs in obstacles:
+        obs[1] += speed
+        if check_collision([car_x, car_y, car_w, car_h], obs):
+            lcd.fill(RED)
+            utime.sleep(1)
+            lcd.fill(BLACK)
+            car_x = WIDTH//2 - 10
+            car_y = HEIGHT - 30
+            obstacles.clear()
+            score = 0
+        # Ekrana çiz
+        draw_rect(obs[0], obs[1], obs[2], obs[3], WHITE)
+
+    # Araba çiz
+    draw_rect(car_x, car_y, car_w, car_h, BLUE)
+
+    # Skoru güncelle
+    score += 1
+
+    utime.sleep_ms(50)
+    # Temizle sadece araba ve engelleri
+    lcd.fill(BLACK)
