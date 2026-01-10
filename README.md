@@ -2,7 +2,7 @@
 Game station via Raspbery pi 
 
 -İf you want to chance control find this part of code
-
+#
 btn_left = Pin(16, Pin.IN, Pin.PULL_UP)
 btn_right = Pin(20, Pin.IN, Pin.PULL_UP)
 btn_up = Pin(2, Pin.IN, Pin.PULL_UP)
