@@ -2,8 +2,8 @@
 Game station via Raspbery pi 
 #
 -İf you want to chance control find this part of code
-V2.0 34
-V1.0 33
+V2.0, 34
+V1.0, 33
 
 btn_left = Pin(16, Pin.IN, Pin.PULL_UP),
 
